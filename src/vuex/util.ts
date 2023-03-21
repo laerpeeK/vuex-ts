@@ -55,7 +55,7 @@ export function partial(fn: Function, arg: any) {
  * @param f 
  * @returns 
  */
-export function find(list: Array<Record<string, any>>, f: (c: any) => boolean) {
+export function find(list: Array<any>, f: (c: any) => boolean) {
   return list.filter(f)[0]
 }
 
