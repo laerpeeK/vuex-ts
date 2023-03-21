@@ -132,7 +132,7 @@ export class Store {
     )
 
     const mutation = { type, payload }
-    // @ts-ignore
+    // @ts-expect-error
     const entry = this._mutations[type]
     if (!entry) {
       if (process.env.NODE_ENV !== 'production') {
@@ -239,7 +239,7 @@ export class Store {
    * @param options
    * @returns
    */
-  watch(getter: Function, cb: Function, options: WatchOptions) {
+  watch(getter: Function, cb: Function, options?: WatchOptions) {
     if (process.env.NODE_ENV !== 'production') {
       assert(
         typeof getter === 'function',

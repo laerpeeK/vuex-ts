@@ -91,7 +91,6 @@ console.log(store.hasModule('pet'))
 
 store.unregisterModule('pet')
 
-
 store.hotUpdate({
   mutations: {
     increment(state) {
