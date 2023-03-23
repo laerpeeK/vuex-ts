@@ -2,13 +2,13 @@ import { Action, Getter, HotUpdateOptions, ModuleContext, Mutation, RawModule } 
 import { forEachValue } from '../util'
 
 export default class Module {
-  runtime: boolean
+  runtime?: boolean
   _children: Record<string, Module>
   state: Record<string, any>
   _rawModule: RawModule
   context!: ModuleContext
   
-  constructor(rawModule: RawModule, runtime: boolean) {
+  constructor(rawModule: RawModule, runtime?: boolean) {
     this.runtime = runtime
     // Store some children item
     this._children = Object.create(null)
