@@ -124,6 +124,7 @@ export class Store {
   }
 
   commit(_type: string | ObjectType, _payload?: any, _options?: any) {
+    debugger
     // check object-style commit
     const { type, payload, options } = unifyObjectStyle(
       _type,

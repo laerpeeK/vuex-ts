@@ -1,6 +1,6 @@
 import { Store } from "../store"
 
-const target = typeof window !== 'undefined'
+const target: Record<string, any> = typeof window !== 'undefined'
   ? window
   // @ts-ignore
   : typeof global !== 'undefined'
