@@ -1,7 +1,7 @@
 import Vue from 'vue'
 import Vuex from '@/vuex'
 import { describe, it } from '@jest/globals'
-import type { ActionContext, RawModule } from '@/vuex/types'
+import type { ActionContext, RawModule, ObjectType } from '@/vuex/types'
 
 const TEST = 'TEST'
 
@@ -458,15 +458,13 @@ describe('Modules', () => {
           b: createModule('b', false, {
             c: createModule('c', true),
           }),
-          d: createModule('d', true)
+          d: createModule('d', true),
         }),
       }
 
       const store = new Vuex.Store({ modules })
 
-      const expectedTypes = [
-        'a/a', 'a/b', 'a/c/c', 'a/d/d'
-      ]
+      const expectedTypes = ['a/a', 'a/b', 'a/c/c', 'a/d/d']
 
       // getters
       expectedTypes.forEach((type: string) => {
@@ -474,18 +472,18 @@ describe('Modules', () => {
       })
 
       // actions
-      expectedTypes.forEach(type => {
+      expectedTypes.forEach((type) => {
         store.dispatch(type)
       })
-      actionSpys.forEach(spy => {
+      actionSpys.forEach((spy) => {
         expect(spy).toHaveBeenCalledTimes(1)
       })
 
       // mutations
-      expectedTypes.forEach(type => {
+      expectedTypes.forEach((type) => {
         store.commit(type)
       })
-      mutationSpys.forEach(spy => {
+      mutationSpys.forEach((spy) => {
         expect(spy).toHaveBeenCalledTimes(1)
       })
     })
@@ -494,19 +492,19 @@ describe('Modules', () => {
       const store = new Vuex.Store({
         state: { value: 'root' },
         getters: {
-          foo: state => state.value
+          foo: (state) => state.value,
         },
         modules: {
           a: {
             namespaced: true,
             state: { value: 'module' },
             getters: {
-              foo: state => state.value,
+              foo: (state) => state.value,
               bar: (state, getters) => getters.foo,
-              baz: (state, getters, rootState, rootGetters) => rootGetters!.foo
-            }
-          }
-        }
+              baz: (state, getters, rootState, rootGetters) => rootGetters!.foo,
+            },
+          },
+        },
       })
 
       expect(store.getters['a/foo']).toBe('module')
@@ -514,5 +512,401 @@ describe('Modules', () => {
       expect(store.getters['a/baz']).toBe('root')
     })
 
+    it('module: action context is namespaced in namespaced module', (done) => {
+      const rootActionSpy = jest.fn()
+      const rootMutationSpy = jest.fn()
+      const moduleActionSpy = jest.fn()
+      const moduleMutationSpy = jest.fn()
+
+      const store = new Vuex.Store({
+        state: { value: 'root' },
+        getters: { foo: (state) => state.value },
+        actions: { foo: rootActionSpy },
+        mutations: { foo: rootMutationSpy },
+        modules: {
+          a: {
+            namespaced: true,
+            state: { value: 'module' },
+            getters: { foo: (state) => state.value },
+            actions: {
+              foo: moduleActionSpy,
+              test({ dispatch, commit, getters, rootGetters }) {
+                expect(getters.foo).toBe('module')
+                expect(rootGetters.foo).toBe('root')
+
+                dispatch('foo')
+                expect(moduleActionSpy).toHaveBeenCalledTimes(1)
+                dispatch('foo', null, { root: true })
+                expect(rootActionSpy).toHaveBeenCalledTimes(1)
+
+                commit('foo')
+                expect(moduleMutationSpy).toHaveBeenCalledTimes(1)
+                commit('foo', null, { root: true })
+                expect(rootMutationSpy).toHaveBeenCalledTimes(1)
+
+                done()
+              },
+            },
+            mutations: { foo: moduleMutationSpy },
+          },
+        },
+      })
+
+      store.dispatch('a/test')
+    })
+
+    it('module: use other module that has same namespace', (done) => {
+      const actionSpy = jest.fn()
+      const mutationSpy = jest.fn()
+
+      const store = new Vuex.Store({
+        modules: {
+          parent: {
+            namespaced: true,
+
+            modules: {
+              a: {
+                state: { value: 'a' },
+                getters: { foo: (state) => state.value },
+                actions: { foo: actionSpy },
+                mutations: { foo: mutationSpy },
+              },
+
+              b: {
+                state: { value: 'b' },
+                getters: { bar: (state, getters) => getters.foo },
+                actions: {
+                  test({ dispatch, commit, getters }) {
+                    expect(getters.foo).toBe('a')
+                    expect(getters.bar).toBe('a')
+
+                    dispatch('foo')
+                    expect(actionSpy).toHaveBeenCalled()
+
+                    commit('foo')
+                    expect(mutationSpy).toHaveBeenCalled()
+
+                    done()
+                  },
+                },
+              },
+            },
+          },
+        },
+      })
+
+      store.dispatch('parent/test')
+    })
+
+    it('module: warn when module overrides state', () => {
+      jest.spyOn(console, 'warn').mockImplementation()
+      const store = new Vuex.Store({
+        modules: {
+          foo: {
+            state() {
+              return { value: 1 }
+            },
+            modules: {
+              value: {
+                state: () => 2,
+              },
+            },
+          },
+        },
+      })
+      expect(store.state.foo.value).toBe(2)
+      expect(console.warn).toHaveBeenCalledWith(
+        `[vuex] state field "value" was overridden by a module with the same name at "foo.value"`
+      )
+    })
+
+    it('dispatching multiple actions in different modules', (done) => {
+      const store = new Vuex.Store({
+        modules: {
+          a: {
+            actions: {
+              [TEST]() {
+                return 1
+              },
+            },
+          },
+          b: {
+            actions: {
+              [TEST]() {
+                return new Promise<number>((r) => r(2))
+              },
+            },
+          },
+        },
+      })
+      store.dispatch(TEST)?.then((res) => {
+        expect(res[0]).toBe(1)
+        expect(res[1]).toBe(2)
+        done()
+      })
+    })
+
+    it('root actions dispatched in namespaced modules', (done) => {
+      const store = new Vuex.Store({
+        modules: {
+          a: {
+            namespaced: true,
+            actions: {
+              [TEST]: {
+                root: true,
+                handler() {
+                  return 1
+                },
+              },
+            },
+          },
+          b: {
+            namespaced: true,
+            actions: {
+              [TEST]: {
+                root: true,
+                handler() {
+                  return new Promise((r) => r(2))
+                },
+              },
+            },
+          },
+          c: {
+            namespaced: true,
+            actions: {
+              [TEST]: {
+                handler() {
+                  // Should not be called
+                  return 3
+                },
+              },
+            },
+          },
+          d: {
+            namespaced: true,
+            actions: {
+              [TEST]() {
+                // Should not be called
+                return 4
+              },
+            },
+          },
+        },
+      })
+      store.dispatch(TEST)?.then((res) => {
+        expect(res.length).toBe(2)
+        expect(res[0]).toBe(1)
+        expect(res[1]).toBe(2)
+        done()
+      })
+    })
+
+    it('plugins', function () {
+      let initState
+      const actionSpy = jest.fn()
+      const mutations: Array<{ type: string | ObjectType; payload?: any }> = []
+      const subscribeActionSpy = jest.fn()
+      const store = new Vuex.Store({
+        state: {
+          a: 1,
+        },
+        mutations: {
+          [TEST](state, n) {
+            state.a += n
+          },
+        },
+        actions: {
+          [TEST]: actionSpy,
+        },
+        plugins: [
+          (store) => {
+            initState = store.state
+            store.subscribe((mut, state) => {
+              expect(state).toBe(state)
+              mutations.push(mut)
+            })
+            store.subscribeAction(subscribeActionSpy)
+          },
+        ],
+      })
+      expect(initState).toBe(store.state)
+      store.commit(TEST, 2)
+      store.dispatch(TEST, 2)
+      expect(mutations.length).toBe(1)
+      expect(mutations[0].type).toBe(TEST)
+      expect(mutations[0].payload).toBe(2)
+      expect(actionSpy).toHaveBeenCalled()
+      expect(subscribeActionSpy).toHaveBeenCalledWith(
+        { type: TEST, payload: 2 },
+        store.state
+      )
+    })
+
+    it('action before/after subscribers', (done) => {
+      const beforeSpy = jest.fn()
+      const afterSpy = jest.fn()
+      const store = new Vuex.Store({
+        actions: {
+          [TEST]: () => Promise.resolve(),
+        },
+        plugins: [
+          (store) => {
+            store.subscribeAction({
+              before: beforeSpy,
+              after: afterSpy,
+            })
+          },
+        ],
+      })
+      store.dispatch(TEST, 2)
+      expect(beforeSpy).toHaveBeenCalledWith(
+        { type: TEST, payload: 2 },
+        store.state
+      )
+      expect(afterSpy).not.toHaveBeenCalled()
+      Vue.nextTick(() => {
+        expect(afterSpy).toHaveBeenCalledWith(
+          { type: TEST, payload: 2 },
+          store.state
+        )
+        done()
+      })
+    })
+  })
+
+  it('action error subscribers', (done) => {
+    const beforeSpy = jest.fn()
+    const afterSpy = jest.fn()
+    const errorSpy = jest.fn()
+    const error = new Error()
+    const store = new Vuex.Store({
+      actions: {
+        [TEST]: () => Promise.reject(error),
+      },
+      plugins: [
+        (store) => {
+          store.subscribeAction({
+            before: beforeSpy,
+            after: afterSpy,
+            error: errorSpy,
+          })
+        },
+      ],
+    })
+    store.dispatch(TEST, 2)?.catch(() => {
+      expect(beforeSpy).toHaveBeenCalledWith(
+        { type: TEST, payload: 2 },
+        store.state
+      )
+      expect(afterSpy).not.toHaveBeenCalled()
+      Vue.nextTick(() => {
+        expect(afterSpy).not.toHaveBeenCalledWith(
+          { type: TEST, payload: 2 },
+          store.state
+        )
+        expect(errorSpy).toHaveBeenCalledWith(
+          { type: TEST, payload: 2 },
+          store.state,
+          error
+        )
+        done()
+      })
+    })
+  })
+
+  it('asserts a mutation should be a function', () => {
+    expect(() => {
+      new Vuex.Store({
+        mutations: {
+          // @ts-expect-error
+          test: null,
+        },
+      })
+    }).toThrowError(
+      /mutations should be function but "mutations\.test" is null/
+    )
+
+    expect(() => {
+      new Vuex.Store({
+        modules: {
+          foo: {
+            modules: {
+              bar: {
+                mutations: {
+                  // @ts-expect-error
+                  test: 123,
+                },
+              },
+            },
+          },
+        },
+      })
+    }).toThrowError(
+      /mutations should be function but "mutations\.test" in module "foo\.bar" is 123/
+    )
+  })
+
+  it('asserts an action should be a function', () => {
+    expect(() => {
+      new Vuex.Store({
+        actions: {
+          // @ts-expect-error
+          test: 'test',
+        },
+      })
+    }).toThrowError(
+      /actions should be function or object with "handler" function but "actions\.test" is "test"/
+    )
+
+    expect(() => {
+      new Vuex.Store({
+        modules: {
+          foo: {
+            modules: {
+              bar: {
+                actions: {
+                  // @ts-expect-error
+                  test: 'error',
+                },
+              },
+            },
+          },
+        },
+      })
+    }).toThrowError(
+      /actions should be function or object with "handler" function but "actions\.test" in module "foo\.bar" is "error"/
+    )
+  })
+
+  it('asserts a getter should be a function', () => {
+    expect(() => {
+      new Vuex.Store({
+        getters: {
+          // @ts-expect-error
+          test: undefined,
+        },
+      })
+    }).toThrowError(
+      /getters should be function but "getters\.test" is undefined/
+    )
+
+    expect(() => {
+      new Vuex.Store({
+        modules: {
+          foo: {
+            modules: {
+              bar: {
+                getters: {
+                  // @ts-expect-error
+                  test: true,
+                },
+              },
+            },
+          },
+        },
+      })
+    }).toThrowError(
+      /getters should be function but "getters\.test" in module "foo\.bar" is true/
+    )
   })
 })
