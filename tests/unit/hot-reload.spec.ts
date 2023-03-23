@@ -302,15 +302,15 @@ describe('Hot Reload', () => {
       modules: {
         test: {
           state: {
-            count: 0,
-          },
-        },
-      },
+            count: 0
+          }
+        }
+      }
     })
 
     expect(console.warn).toHaveBeenCalledWith(
-      "[vuex] trying to add a new module 'test' on hot reloading, " +
-        'manual reload is needed'
+      '[vuex] trying to add a new module \'test\' on hot reloading, ' +
+      'manual reload is needed'
     )
   })
 
@@ -326,11 +326,11 @@ describe('Hot Reload', () => {
         a: {
           namespaced: true,
           state: { value: 1 },
-          getters: { foo: (state) => state.value },
+          getters: { foo: state => state.value },
           actions: { foo: actionSpy },
-          mutations: { foo: mutationSpy },
-        },
-      },
+          mutations: { foo: mutationSpy }
+        }
+      }
     })
 
     expect(store.state.a.value).toBe(1)
@@ -343,9 +343,9 @@ describe('Hot Reload', () => {
     store.hotUpdate({
       modules: {
         a: {
-          namespaced: false,
-        },
-      },
+          namespaced: false
+        }
+      }
     })
 
     expect(store.state.a.value).toBe(1)
